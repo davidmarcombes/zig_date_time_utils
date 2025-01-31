@@ -99,15 +99,15 @@ pub const DateRoll = enum {
     /// Convert a string to a date roll
     /// Returns None if the string is invalid
     pub fn fromString(value: []const u8) DateRoll {
-        return switch (value) {
-            "N" => .None,
-            "F" => .Following,
-            "P" => .Preceding,
-            "MF" => .ModifiedFollowing,
-            "MP" => .ModifiedPreceding,
-            else => .None,
-        };
-    }
+    
+    // Using std.mem.eql for string comparison
+    if (std.mem.eql(u8, value, "N")) return .None;
+    if (std.mem.eql(u8, value, "F")) return .Following;
+    if (std.mem.eql(u8, value, "P")) return .Preceding;
+    if (std.mem.eql(u8, value, "MF")) return .ModifiedFollowing;
+    if (std.mem.eql(u8, value, "MP")) return .ModifiedPreceding;
+    return .None;
+}
 };
 
 /// Represents a C Date Time
@@ -300,10 +300,17 @@ pub fn ymdToGregorianDay(year: u16, month: u8, day: u8) u32 {
 
 /// Convert year month day to Julian day
 pub fn ymdToJulianDay(year: u16, month: u8, day: u8) u32 {
-    var a = @intCast((14 - month) / 12);
-    var y = year + 4800 - a;
-    var m = month + 12 * a - 3;
-    return @intCast(day + ((153 * m + 2) / 5) + 365 * y + (y / 4) - (y / 100) + (y / 400) - 32045);
+    const a: i32 = @intCast((14 - month) / 12);
+    const y: i32 = @intCast(year + 4800 - a);
+    const m: i32 = @intCast(month + 12 * a - 3);
+    return @intCast(day + ((153 * m + 2) / 5 + 365 * y + (y / 4) - (y / 100) + (y / 400) - 32045));
+}
+
+pub fn toJulianFloat(julianDay: u32, hours: i32, minutes: i32, seconds: i32) f64 {
+    return @as(f64, @floatFromInt(julianDay)) + 
+           @as(f64, @floatFromInt(hours)) / 24.0 + 
+           @as(f64, @floatFromInt(minutes)) / 1440.0 + 
+           @as(f64, @floatFromInt(seconds)) / 86400.0;
 }
 
 /// Convert year mont day to a date key
@@ -315,7 +322,10 @@ pub fn ymdToDateKey(year: u16, month: u8, day: u8) u32 {
 /// Convert year month day hour minute second to Excel serial date
 pub fn ymdhmsToExcelSerialDate(year: u16, month: u8, day: u8, hours: u8, minutes: u8, seconds: u8) f64 {
     const julianDay = ymdToJulianDay(year, month, day);
-    return @intToFloat(julianDay) + @intToFloat(hours) / 24.0 + @intToFloat(minutes) / 1440.0 + @intToFloat(seconds) / 86400.0;
+    return @as(f64, @floatFromInt(julianDay)) + 
+           @as(f64, @floatFromInt(hours)) / 24.0 + 
+           @as(f64, @floatFromInt(minutes)) / 1440.0 + 
+           @as(f64, @floatFromInt(seconds)) / 86400.0;
 }
 
 pub const HolidayCalendar = struct 
@@ -335,7 +345,8 @@ pub const HolidayCalendar = struct
     pub fn init(allocator: std.mem.Allocator) !HolidayCalendar {
         return HolidayCalendar{
             .allocator = allocator,
-            .weekend = WeekendConfig{},
+            .weekendFirstDay = 6, // Saturday
+            .weekendSecondDay = 0, // Sunday
             .regular_holidays = std.ArrayList(Holiday).init(allocator),
             .special_holidays = std.AutoHashMap(u32, []const u8).init(allocator),
         };
